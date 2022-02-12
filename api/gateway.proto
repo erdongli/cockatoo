@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package cockatoo.api;
+
+option go_package = "github.com/erdongli/cockatoo/api";
+
+service Gateway {
+    rpc Connect(stream Packet) returns (stream Packet);
+}
+
+message Packet {
+    string uri = 1;
+    bytes data = 2;
+}
