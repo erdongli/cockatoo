@@ -5,3 +5,6 @@ genproto:
 
 clean:
 	rm api/*.go 
+
+run bdg:
+	go run cmd/bdg/bdg.go
