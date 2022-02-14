@@ -1,8 +1,7 @@
 package bdg
 
 import (
-	"io"
-	"log"
+	"fmt"
 	"time"
 
 	pb "github.com/erdongli/cockatoo/api"
@@ -16,39 +15,30 @@ var (
 
 type BDG struct {
 	pb.UnimplementedGatewayServer
+
+	registry *conn.Registry
 }
 
 func NewBDG() *BDG {
-	return &BDG{}
+	return &BDG{
+		registry: conn.NewRegistry(),
+	}
 }
 
 func (g *BDG) Connect(stream pb.Gateway_ConnectServer) error {
-	addr := "unknown"
-	if peer, ok := peer.FromContext(stream.Context()); ok {
-		addr = peer.Addr.String()
+	// using source IP address as id for now
+	peer, ok := peer.FromContext(stream.Context())
+	if !ok {
+		return fmt.Errorf("failed to parse peer information")
 	}
-	log.Printf("new connection from %s", addr)
+	addr := peer.Addr.String()
 
-	conn := conn.NewConnection(stream)
+	conn := conn.NewConnection(addr, stream)
+	g.registry.Add(conn)
+	defer g.registry.Del(conn)
 
-	errorc := make(chan error)
-	go func() {
-		for {
-			packet, err := conn.Recv()
-			if err == io.EOF {
-				log.Printf("connection from %s aborted", addr)
-				errorc <- nil
-				return
-			}
-			if err != nil {
-				log.Printf("failed to receive packet: %v", err)
-				errorc <- err
-				return
-			}
+	errc := make(chan error)
+	go conn.Listen(errc)
 
-			log.Printf("uri: %s, # sent: %d, # received: %d", packet.Uri, conn.Stat.NumSent(), conn.Stat.NumReceived())
-		}
-	}()
-
-	return <-errorc
+	return <-errc
 }
